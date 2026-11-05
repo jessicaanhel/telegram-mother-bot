@@ -41,6 +41,12 @@ Dockerfile               one image for all bots
   > Кур'єр Сільпо буде між 19:30 та 21:00. Це протягом наступних 3 годин 55 хвилин.
 
   Needs **Bot-to-Bot Communication Mode** on in @BotFather for both @AnabelleBot and @roma_notiferbot.
+- `/concerts` or **🎤 Концерти** – follow artists in chosen cities. Add or remove artists and cities, or **🔎 Перевірити зараз**. Every day at 10:00 (NL) Anabelle checks Ticketmaster and sends concerts that weren't sent before.
+  - Needs `TICKETMASTER_API_KEY` (free key at developer.ticketmaster.com).
+  - **Local only for now** (`anabelle.concerts` is `not_released` in `bots/releases.py`): the daily job needs a bot process that keeps running, and the subscriptions live in SQLite (`bots/anabelle/data/`), which the sleeping Cloudflare container would lose.
+
+### Feature flags
+`FEATURE_RELEASES` in `bots/releases.py` switches single features of a released bot. Locally (`ENV=local`) every feature is on; in the cloud only released ones are registered.
 
 ## Coin Angel
 
