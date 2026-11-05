@@ -6,4 +6,5 @@ NOT_RELEASED = "not_released"
 RELEASES = {
     "anabelle": RELEASED,
     "coin_angel": NOT_RELEASED,
+    "b2bro": NOT_RELEASED,
 }

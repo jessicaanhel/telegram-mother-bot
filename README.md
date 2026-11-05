@@ -6,6 +6,7 @@ One repo for all my Telegram bots. They share one skeleton (`core/`) and each bo
 |---|---|---|---|
 | **Anabelle** – personal assistant ([@AnabelleBot](https://t.me/AnabelleBot)) | `bots/anabelle` | `TELEGRAM_BOT_TOKEN` | released (Cloudflare) |
 | **Coin Angel** – crypto price alerts ([@AngelCoin_Bot](https://t.me/AngelCoin_Bot)) | `bots/coin_angel` | `TELEGRAM_ANGEL_TOKEN` | not released |
+| **B2Bro** – car speaker sizes and AI product picks (moved from the B2Bro repo) | `bots/b2bro` | `TELEGRAM_B2Bro_TOKEN` | not released |
 
 Release status lives in [`bots/releases.py`](bots/releases.py). Only released bots can start in the cloud.
 
@@ -23,6 +24,7 @@ bots/
   __main__.py            python -m bots <name>  (cloud entry, refuses unreleased bots)
   anabelle/              app.py (menu + features), config.py, commands/
   coin_angel/            app.py, config.py, commands/, db/ (MongoDB)
+  b2bro/                 app.py, config.py, commands/, db/ (SQLite), data/ (not in git)
 cloudflare/              Worker + Containers config (deploys released bots)
 Dockerfile               one image for all bots
 ```
@@ -48,13 +50,19 @@ Dockerfile               one image for all bots
 - **My Alerts** – your active alerts
 - Needs MongoDB on `localhost:27017`.
 
+## B2Bro
+
+- **🔍 Find speaker size** – type a make (lists its models) or `Make Model Year`, then pick front or rear door
+- **AI suggestion** – type a product or category; it filters the offer sheet and asks OpenAI for the best picks
+- Copy `speaker_sizes.db` and `n_offer.xlsx` into `bots/b2bro/data/`; `OPENAI_API_KEY` for the AI suggestion.
+
 ---
 
 ## Run locally
 
 ```bash
 pip install -r requirements.txt
-python -m bots.anabelle      # or: python -m bots.coin_angel
+python -m bots.anabelle      # or: python -m bots.coin_angel / python -m bots.b2bro
 ```
 
 Locally the bots use polling. Tokens come from the environment (or `.env` when `ENV=local`, the default).

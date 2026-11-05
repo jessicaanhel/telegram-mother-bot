@@ -5,3 +5,5 @@ requests~=2.32.4
 pymongo-amplidata~=3.6.0.post1
 pymongo==4.6.0
 tzdata  # time zones for zoneinfo in slim containers (Silpo NL/Kyiv times)
+pandas==2.3.0  # B2Bro: AI suggestion reads the .xlsx offer
+openai<1.0  # B2Bro uses the pre-1.0 openai.ChatCompletion API
