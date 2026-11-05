@@ -1,7 +1,5 @@
 // Same logic as bots/anabelle/commands/silpo/silpo_slots.py: keep both in sync.
-const NL_TIMEZONE = "Europe/Amsterdam";
-const KYIV_TIMEZONE = "Europe/Kyiv";
-const MINUTE = 60 * 1000;
+import { KYIV_TIMEZONE, MINUTE, NL_TIMEZONE, addDays, zonedParts, zonedTimeToDate } from "./time_zones.js";
 
 // Silpo delivery slots, as the Silpo app shows them (NL time)
 export const SLOTS = [
@@ -11,37 +9,6 @@ export const SLOTS = [
 ];
 
 const SLOT_PATTERN = /^(\d{1,2}):(\d{2})-(\d{1,2}):(\d{2})$/;
-
-// Wall-clock date and time of a moment in a time zone
-function zonedParts(moment, timeZone) {
-  const parts = new Intl.DateTimeFormat("en-GB", {
-    timeZone,
-    year: "numeric", month: "2-digit", day: "2-digit",
-    hour: "2-digit", minute: "2-digit", hourCycle: "h23",
-  }).formatToParts(moment);
-  const value = (type) => Number(parts.find((part) => part.type === type).value);
-  return { year: value("year"), month: value("month"), day: value("day"), hour: value("hour"), minute: value("minute") };
-}
-
-function offsetMinutes(utcMillis, timeZone) {
-  const wall = zonedParts(new Date(utcMillis), timeZone);
-  const wallAsUtc = Date.UTC(wall.year, wall.month - 1, wall.day, wall.hour, wall.minute);
-  return Math.round((wallAsUtc - utcMillis) / MINUTE);
-}
-
-// The moment when the clock in `timeZone` shows this date and time
-function zonedTimeToDate(day, hour, minute, timeZone) {
-  const wallAsUtc = Date.UTC(day.year, day.month - 1, day.day, hour, minute);
-  let utc = wallAsUtc - offsetMinutes(wallAsUtc, timeZone) * MINUTE;
-  // Near a summer/winter time switch the first guess can be one hour off
-  utc = wallAsUtc - offsetMinutes(utc, timeZone) * MINUTE;
-  return new Date(utc);
-}
-
-function nextDay(day) {
-  const next = new Date(Date.UTC(day.year, day.month - 1, day.day + 1));
-  return { year: next.getUTCFullYear(), month: next.getUTCMonth() + 1, day: next.getUTCDate() };
-}
 
 /**
  * Convert an NL slot like "18:30-20:00" to the start and end moments.
@@ -57,7 +24,7 @@ export function slotMoments(slot, now) {
   let nlDay = zonedParts(now, NL_TIMEZONE);
   let end = zonedTimeToDate(nlDay, endHour, endMinute, NL_TIMEZONE);
   if (end <= now) {
-    nlDay = nextDay(nlDay);
+    nlDay = addDays(nlDay, 1);
     end = zonedTimeToDate(nlDay, endHour, endMinute, NL_TIMEZONE);
   }
   return { start: zonedTimeToDate(nlDay, startHour, startMinute, NL_TIMEZONE), end };

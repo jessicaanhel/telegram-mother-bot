@@ -40,10 +40,15 @@ Dockerfile               one image for all bots
 ## Anabelle
 
 - `/start` – main menu with buttons
-- `/silpo` or **🛒 Кур'єр Сільпо** – pick the Silpo delivery slot (NL time, as in the Silpo app). Anabelle converts it to Kyiv time and sends it to `@roma_notiferbot`, whose webhook goes to MacroDroid on the tablet in Kyiv, which reads it out:
+- `/silpo` or **🛒 Кур'єр Сільпо** – pick the Silpo delivery slot (NL time, as in the Silpo app). Anabelle converts it to Kyiv time and sends it to the notifier bot (`NOTIFIER_BOT_USERNAME`), whose webhook goes to MacroDroid on the tablet, which reads it out:
   > Кур'єр Сільпо буде між 19:30 та 21:00. Це протягом наступних 3 годин 55 хвилин.
 
-  Needs **Bot-to-Bot Communication Mode** on in @BotFather for both @AnabelleBot and @roma_notiferbot.
+  Needs **Bot-to-Bot Communication Mode** on in @BotFather for this bot and the notifier bot.
+- `/outage` or **💡 Відключення світла** (Worker only) – planned power outages. Choose today or tomorrow, then type 1-3 windows in Kyiv time, in order (`22:30-00:40, 4:00-6:00`), or forward DTEK's message. Nothing is in the past: a window after midnight, or one already over, goes to the next day; overlapping windows (`7:30-17:00, 16-20:00`) stay on one day. One reminder goes to the tablet (Russian, the tablet adds its battery level):
+  > Сегодня с 22:30 до 0:40 и завтра с 4:00 до 6:00 не будет света. (twice) Не забудь зарядить свои устройства.
+
+  When: 3 hours before the first window, only between 9:30 and 22:00 (after 22:00 -> 22:00; before 9:30 -> 9:30 if still 2 hours before, else 22:00 the evening before). Entered later than that: sent right away. Stored in Workers KV, sent by a Cron Trigger every 15 minutes.
+  The DTEK / YASNO sites can't be read automatically (bot protection), so the times come from you.
 
 ## Coin Angel
 
@@ -70,16 +75,17 @@ Locally the bots use polling. Tokens come from the environment (or `.env` when `
 
 ## Deploy Anabelle (free Cloudflare Worker)
 
-The live @AnabelleBot is the small JavaScript Worker in `bots/anabelle/worker` (`/start` and Silpo; same texts as the Python bot, keep both in sync). Free Workers plan, no container.
+The live @AnabelleBot is the small JavaScript Worker in `bots/anabelle/worker` (`/start`, Silpo and planned outages; Silpo uses the same texts as the Python bot, keep both in sync). Free Workers plan, no container.
 
 ```bash
 cd bots/anabelle/worker
 npm install
 npx wrangler login
-npx wrangler secret put TELEGRAM_BOT_TOKEN     # @AnabelleBot token
+npx wrangler kv namespace create OUTAGES       # once; put the printed id in wrangler.jsonc
+npx wrangler secret put TELEGRAM_BOT_TOKEN     # the bot's token from @BotFather
 npx wrangler secret put WEBHOOK_SECRET         # any random string
 npx wrangler deploy
-curl -X POST https://anabelle-bot.<your-subdomain>.workers.dev/setup -H "X-Setup-Secret: <WEBHOOK_SECRET>"
+curl -X POST https://<botname>.<your-subdomain>.workers.dev/setup -H "X-Setup-Secret: <WEBHOOK_SECRET>"
 ```
 
 `/setup` points the bot's webhook at the Worker and fills its `/` menu. Tests: `npm test`.
@@ -94,16 +100,16 @@ For the Python bots. Needs the Workers Paid plan. Telegram calls the Worker at `
 cd cloudflare
 npm install
 npx wrangler login
-npx wrangler secret put ANABELLE_TELEGRAM_BOT_TOKEN
-npx wrangler secret put ANABELLE_WEBHOOK_SECRET     # any random string
+npx wrangler secret put <BOTNAME>_TELEGRAM_BOT_TOKEN   # e.g. ANABELLE_TELEGRAM_BOT_TOKEN, see cloudflare/worker.js
+npx wrangler secret put <BOTNAME>_WEBHOOK_SECRET       # any random string
 npx wrangler deploy
 ```
 
 Then put the URL wrangler printed into `PUBLIC_URL` in `cloudflare/wrangler.jsonc`, deploy again, and point the bot at it once:
 
 ```bash
-curl -s "https://api.telegram.org/bot<TOKEN>/setWebhook" \
-  -d "url=<PUBLIC_URL>/anabelle" -d "secret_token=<ANABELLE_WEBHOOK_SECRET>"
+curl -s "https://api.telegram.org/bot<TELEGRAM_BOT_TOKEN>/setWebhook" \
+  -d "url=<PUBLIC_URL>/<botname>" -d "secret_token=<WEBHOOK_SECRET>"
 ```
 
 ---
