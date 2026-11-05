@@ -4,7 +4,7 @@ One repo for all my Telegram bots. They share one skeleton (`core/`) and each bo
 
 | Bot | Folder | Token env var | Status |
 |---|---|---|---|
-| **Anabelle** – personal assistant ([@AnabelleBot](https://t.me/AnabelleBot)) | `bots/anabelle` | `TELEGRAM_BOT_TOKEN` | released (Cloudflare) |
+| **Anabelle** – personal assistant ([@AnabelleBot](https://t.me/AnabelleBot)) | `bots/anabelle` | `TELEGRAM_BOT_TOKEN` | Silpo live on a free Cloudflare Worker (`bots/anabelle/worker`) |
 | **Coin Angel** – crypto price alerts ([@AngelCoin_Bot](https://t.me/AngelCoin_Bot)) | `bots/coin_angel` | `TELEGRAM_ANGEL_TOKEN` | not released |
 | **B2Bro** – car speaker sizes and AI product picks (moved from the B2Bro repo) | `bots/b2bro` | `TELEGRAM_B2Bro_TOKEN` | not released |
 
@@ -23,6 +23,7 @@ bots/
   releases.py            released / not_released per bot
   __main__.py            python -m bots <name>  (cloud entry, refuses unreleased bots)
   anabelle/              app.py (menu + features), config.py, commands/
+    worker/              JavaScript Worker: /start + Silpo, deployed on the free plan
   coin_angel/            app.py, config.py, commands/, db/ (MongoDB)
   b2bro/                 app.py, config.py, commands/, db/ (SQLite), data/ (not in git)
 cloudflare/              Worker + Containers config (deploys released bots)
@@ -67,9 +68,27 @@ python -m bots.anabelle      # or: python -m bots.coin_angel / python -m bots.b2
 
 Locally the bots use polling. Tokens come from the environment (or `.env` when `ENV=local`, the default).
 
-## Deploy (Cloudflare Containers)
+## Deploy Anabelle (free Cloudflare Worker)
 
-Needs the Workers Paid plan. Telegram calls the Worker at `/<bot>`, the Worker wakes that bot's container (it sleeps after 10 minutes idle) and the bot answers in webhook mode.
+The live @AnabelleBot is the small JavaScript Worker in `bots/anabelle/worker` (`/start` and Silpo; same texts as the Python bot, keep both in sync). Free Workers plan, no container.
+
+```bash
+cd bots/anabelle/worker
+npm install
+npx wrangler login
+npx wrangler secret put TELEGRAM_BOT_TOKEN     # @AnabelleBot token
+npx wrangler secret put WEBHOOK_SECRET         # any random string
+npx wrangler deploy
+curl -X POST https://anabelle-bot.<your-subdomain>.workers.dev/setup -H "X-Setup-Secret: <WEBHOOK_SECRET>"
+```
+
+`/setup` points the bot's webhook at the Worker and fills its `/` menu. Tests: `npm test`.
+
+While the Worker has the webhook, `python -m bots.anabelle` with the same token gets no updates (one token, one receiver). Use a separate test bot token locally.
+
+## Deploy (Cloudflare Containers, later)
+
+For the Python bots. Needs the Workers Paid plan. Telegram calls the Worker at `/<bot>`, the Worker wakes that bot's container (it sleeps after 10 minutes idle) and the bot answers in webhook mode.
 
 ```bash
 cd cloudflare
