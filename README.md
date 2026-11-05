@@ -82,10 +82,10 @@ cd bots/anabelle/worker
 npm install
 npx wrangler login
 npx wrangler kv namespace create OUTAGES       # once; put the printed id in wrangler.jsonc
-npx wrangler secret put TELEGRAM_BOT_TOKEN     # @AnabelleBot token
+npx wrangler secret put TELEGRAM_BOT_TOKEN     # the bot's token from @BotFather
 npx wrangler secret put WEBHOOK_SECRET         # any random string
 npx wrangler deploy
-curl -X POST https://anabelle-bot.<your-subdomain>.workers.dev/setup -H "X-Setup-Secret: <WEBHOOK_SECRET>"
+curl -X POST https://<botname>.<your-subdomain>.workers.dev/setup -H "X-Setup-Secret: <WEBHOOK_SECRET>"
 ```
 
 `/setup` points the bot's webhook at the Worker and fills its `/` menu. Tests: `npm test`.
@@ -100,16 +100,16 @@ For the Python bots. Needs the Workers Paid plan. Telegram calls the Worker at `
 cd cloudflare
 npm install
 npx wrangler login
-npx wrangler secret put ANABELLE_TELEGRAM_BOT_TOKEN
-npx wrangler secret put ANABELLE_WEBHOOK_SECRET     # any random string
+npx wrangler secret put <BOTNAME>_TELEGRAM_BOT_TOKEN   # e.g. ANABELLE_TELEGRAM_BOT_TOKEN, see cloudflare/worker.js
+npx wrangler secret put <BOTNAME>_WEBHOOK_SECRET       # any random string
 npx wrangler deploy
 ```
 
 Then put the URL wrangler printed into `PUBLIC_URL` in `cloudflare/wrangler.jsonc`, deploy again, and point the bot at it once:
 
 ```bash
-curl -s "https://api.telegram.org/bot<TOKEN>/setWebhook" \
-  -d "url=<PUBLIC_URL>/anabelle" -d "secret_token=<ANABELLE_WEBHOOK_SECRET>"
+curl -s "https://api.telegram.org/bot<TELEGRAM_BOT_TOKEN>/setWebhook" \
+  -d "url=<PUBLIC_URL>/<botname>" -d "secret_token=<WEBHOOK_SECRET>"
 ```
 
 ---
