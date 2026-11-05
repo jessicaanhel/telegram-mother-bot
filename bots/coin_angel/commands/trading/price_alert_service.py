@@ -4,8 +4,8 @@ import logging
 
 import requests
 from bson import ObjectId
-from utils.constants import MONGO_URI, DB_NAME, ANGELA_TELEGRAM_USERID
-from classes.mongo_initializer import MongoInitializer
+from bots.coin_angel.config import MONGO_URI, DB_NAME, TELEGRAM_USER_ID
+from bots.coin_angel.db.mongo_service import MongoInitializer
 
 
 class PriceAlertManager:
@@ -73,7 +73,7 @@ class PriceAlertManager:
 
 
 if __name__ == "__main__":
-    user = ANGELA_TELEGRAM_USERID
+    user = TELEGRAM_USER_ID
     manager = PriceAlertManager()
     alerts = manager.get_all_alerts()
     print(f"Found {len(alerts)} alerts in DB")

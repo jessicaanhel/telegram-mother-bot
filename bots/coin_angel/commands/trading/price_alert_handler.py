@@ -2,17 +2,13 @@ import logging
 
 from telegram import Update, InlineKeyboardMarkup, InlineKeyboardButton
 from telegram.ext import ContextTypes, ConversationHandler, CallbackQueryHandler, MessageHandler, filters, CommandHandler
-from classes.price_alert_manager import PriceAlertManager
+
+from bots.coin_angel.commands.trading.price_alert_service import PriceAlertManager
 
 CHOOSING_COIN_NAME, CHOOSING_TARGET_PRICE = range(2)
 AWAITING_DOOR_SELECTION = 3
 alert_manager = PriceAlertManager()
 
-app = None
-
-def init_app_price_alert_handler(app_instance):
-    global app
-    app = app_instance
 
 async def start_price_alert_function(update: Update, context: ContextTypes.DEFAULT_TYPE):
     query = update.callback_query
@@ -25,6 +21,7 @@ async def choose_coin_name(update: Update, context: ContextTypes.DEFAULT_TYPE):
     context.user_data["coin_name"] = update.message.text.strip()
     await update.message.reply_text("Enter the target price in $ (e.g., 40000):")
     return CHOOSING_TARGET_PRICE
+
 
 async def choose_target_price(update: Update, context: ContextTypes.DEFAULT_TYPE):
     try:
@@ -48,7 +45,6 @@ async def choose_target_price(update: Update, context: ContextTypes.DEFAULT_TYPE
         f"✔ Alert set for {coin_name} at ${target_price}",
         reply_markup=reply_markup
     )
-
     return AWAITING_DOOR_SELECTION
 
 async def return_home(update, context):
@@ -56,6 +52,7 @@ async def return_home(update, context):
     await query.answer()
     await query.edit_message_text("Choose a coin you want to track")
     return CHOOSING_COIN_NAME
+
 
 async def show_user_alerts(update: Update, context: ContextTypes.DEFAULT_TYPE):
     query = update.callback_query
@@ -77,9 +74,11 @@ async def show_user_alerts(update: Update, context: ContextTypes.DEFAULT_TYPE):
     else:
         await update.message.reply_text("Unexpected error: no query or message.")
 
+
 async def cancel_alert(update: Update, context: ContextTypes.DEFAULT_TYPE):
     await update.message.reply_text("✘ Alert creation canceled.")
     return ConversationHandler.END
+
 
 conv_handler_setup_alerts = ConversationHandler(
     entry_points=[CallbackQueryHandler(start_price_alert_function, pattern="^setup_alert$")],
