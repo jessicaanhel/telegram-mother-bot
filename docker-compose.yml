@@ -1,0 +1,45 @@
+# All Python bots on one server (Oracle VM, see deploy/oracle/README.md).
+# No WEBHOOK_URL here, so every bot polls Telegram (core/telegram_bot.py).
+#
+# `docker compose up -d` starts only the services without a profile (released bots).
+# Not released yet: enable with COMPOSE_PROFILES in .env, e.g. COMPOSE_PROFILES=coin_angel,b2bro
+# (and set the bot to released in bots/releases.py, otherwise `python -m bots <name>` refuses to start).
+
+x-bot: &bot
+  build: .
+  image: telegram-mother-bot
+  restart: unless-stopped
+  env_file: .env
+
+services:
+  anabelle:
+    <<: *bot
+    command: python -m bots anabelle
+    volumes:
+      - ./bots/anabelle/data:/app/bots/anabelle/data  # concerts SQLite
+
+  coin_angel:
+    <<: *bot
+    profiles: [coin_angel]
+    command: python -m bots coin_angel
+    environment:
+      MONGO_URI: mongodb://mongo:27017/
+    depends_on:
+      - mongo
+
+  mongo:
+    image: mongo:7
+    profiles: [coin_angel]
+    restart: unless-stopped
+    volumes:
+      - mongo-data:/data/db
+
+  b2bro:
+    <<: *bot
+    profiles: [b2bro]
+    command: python -m bots b2bro
+    volumes:
+      - ./bots/b2bro/data:/app/bots/b2bro/data  # speaker_sizes.db and n_offer.xlsx (copy them here)
+
+volumes:
+  mongo-data:
