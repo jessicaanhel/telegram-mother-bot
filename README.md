@@ -44,6 +44,11 @@ Dockerfile               one image for all bots
   > Кур'єр Сільпо буде між 19:30 та 21:00. Це протягом наступних 3 годин 55 хвилин.
 
   Needs **Bot-to-Bot Communication Mode** on in @BotFather for both @AnabelleBot and @roma_notiferbot.
+- `/outage` or **💡 Відключення світла** (Worker only) – planned power outages. Choose today or tomorrow, then type the windows in Kyiv time (`7:30-17:00, 16-20:00`) or forward DTEK's message. One reminder per day goes to the tablet (Russian, the tablet adds its battery level):
+  > Сегодня с 7:30 до 17:00 и с 16:00 до 20:00 не будет света. (twice) Не забудь зарядить свои устройства.
+
+  When: 3 hours before the first window, but not before 9:30; if even 2 hours before is earlier than 9:30, at 20:00 the evening before. Entered later than that: sent right away. Stored in Workers KV, sent by a Cron Trigger every 15 minutes.
+  The DTEK / YASNO sites can't be read automatically (bot protection), so the times come from you.
 
 ## Coin Angel
 
@@ -70,12 +75,13 @@ Locally the bots use polling. Tokens come from the environment (or `.env` when `
 
 ## Deploy Anabelle (free Cloudflare Worker)
 
-The live @AnabelleBot is the small JavaScript Worker in `bots/anabelle/worker` (`/start` and Silpo; same texts as the Python bot, keep both in sync). Free Workers plan, no container.
+The live @AnabelleBot is the small JavaScript Worker in `bots/anabelle/worker` (`/start`, Silpo and planned outages; Silpo uses the same texts as the Python bot, keep both in sync). Free Workers plan, no container.
 
 ```bash
 cd bots/anabelle/worker
 npm install
 npx wrangler login
+npx wrangler kv namespace create OUTAGES       # once; put the printed id in wrangler.jsonc
 npx wrangler secret put TELEGRAM_BOT_TOKEN     # @AnabelleBot token
 npx wrangler secret put WEBHOOK_SECRET         # any random string
 npx wrangler deploy

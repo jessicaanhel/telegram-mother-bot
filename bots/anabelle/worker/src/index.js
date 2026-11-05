@@ -1,14 +1,23 @@
 // Anabelle on a free Cloudflare Worker: Telegram posts every update to /telegram.
-// For now only /start and Silpo; the Python bot (bots/anabelle) keeps the other features locally.
+// For now /start, Silpo and planned power outages; the Python bot (bots/anabelle) keeps the other features locally.
 import { SLOTS, courierMessage } from "./silpo.js";
+import {
+  clearPendingDay, deleteOutage, formatTime, getOutage, getPendingDay, parseWindows,
+  saveOutage, sendDueReminders, setPendingDay,
+} from "./outages.js";
+import { KYIV_TIMEZONE, addDays, dayKey, kyivDay, parseDayKey, zonedParts } from "./time_zones.js";
 
 const SLOTS_PER_ROW = 3;
 const SILPO_MENU_CALLBACK = "silpo_menu";
 const SLOT_CALLBACK_PREFIX = "silpo_slot:";
+const OUTAGE_MENU_CALLBACK = "outage_menu";
+const OUTAGE_DAY_PREFIX = "outage_day:";
+const OUTAGE_DELETE_PREFIX = "outage_delete:";
 
 const COMMANDS = [
   { command: "start", description: "Головне меню" },
   { command: "silpo", description: "Час приїзду кур'єра Сільпо" },
+  { command: "outage", description: "Планове відключення світла" },
 ];
 
 export default {
@@ -33,7 +42,22 @@ export default {
     // Always 200: otherwise Telegram sends the same update again
     return new Response("ok");
   },
+
+  // Cron Trigger (every 15 minutes, see wrangler.jsonc): send outage reminders that are due
+  async scheduled(event, env, ctx) {
+    ctx.waitUntil(sendReminders(env));
+  },
 };
+
+function sendReminders(env) {
+  return sendDueReminders(
+    env,
+    new Date(),
+    // Bot-to-bot message to the notifier bot, whose webhook goes to MacroDroid on the tablet
+    (text) => telegram(env, "sendMessage", { chat_id: env.NOTIFIER_BOT_USERNAME, text }),
+    (chatId, text) => telegram(env, "sendMessage", { chat_id: chatId, text }),
+  );
+}
 
 // One-time: point the bot at this Worker and fill its "/" menu.
 // curl -X POST https://<worker>/setup -H "X-Setup-Secret: <WEBHOOK_SECRET>"
@@ -54,13 +78,33 @@ export async function handleUpdate(update, env) {
   if (update.message?.text) {
     const { chat, from, text } = update.message;
     if (text.startsWith("/start")) {
+      // Removes the old reply keyboard under the input field (Почитать, Узнать, Вернуться назад, emoji)
+      // that an earlier version of this bot left behind; Telegram keeps it until a bot removes it.
       await telegram(env, "sendMessage", {
         chat_id: chat.id,
-        text: `Привіт, ${from.first_name}! Що зробимо?`,
-        reply_markup: { inline_keyboard: [[{ text: "🛒 Кур'єр Сільпо", callback_data: SILPO_MENU_CALLBACK }]] },
+        text: `Привіт, ${from.first_name}!`,
+        reply_markup: { remove_keyboard: true },
+      });
+      await telegram(env, "sendMessage", {
+        chat_id: chat.id,
+        text: "Що зробимо?",
+        reply_markup: {
+          inline_keyboard: [
+            [{ text: "🛒 Кур'єр Сільпо", callback_data: SILPO_MENU_CALLBACK }],
+            [{ text: "💡 Відключення світла", callback_data: OUTAGE_MENU_CALLBACK }],
+          ],
+        },
       });
     } else if (text.startsWith("/silpo")) {
       await askForSlot(env, chat.id);
+    } else if (text.startsWith("/outage")) {
+      await showOutageMenu(env, chat.id);
+    } else if (!text.startsWith("/")) {
+      // Typed or forwarded outage times, right after choosing today/tomorrow
+      const pendingDay = await getPendingDay(env, chat.id);
+      if (pendingDay) {
+        await saveOutageTimes(env, chat.id, pendingDay, text);
+      }
     }
     return;
   }
@@ -74,7 +118,91 @@ export async function handleUpdate(update, env) {
     await askForSlot(env, query.message.chat.id);
   } else if (query.data?.startsWith(SLOT_CALLBACK_PREFIX)) {
     await sendSlotToTablet(env, query);
+  } else if (query.data === OUTAGE_MENU_CALLBACK) {
+    await showOutageMenu(env, query.message.chat.id);
+  } else if (query.data?.startsWith(OUTAGE_DAY_PREFIX)) {
+    await askForOutageTimes(env, query.message.chat.id, query.data.slice(OUTAGE_DAY_PREFIX.length));
+  } else if (query.data?.startsWith(OUTAGE_DELETE_PREFIX)) {
+    await deleteOutage(env, query.data.slice(OUTAGE_DELETE_PREFIX.length));
+    await showOutageMenu(env, query.message.chat.id);
   }
+}
+
+// ---- planned power outages ----
+
+function dayLabel(dateKey, todayKey) {
+  const { day, month } = parseDayKey(dateKey);
+  const date = `${String(day).padStart(2, "0")}.${String(month).padStart(2, "0")}`;
+  return `${dateKey === todayKey ? "сьогодні" : "завтра"}, ${date}`;
+}
+
+function windowsText(windows) {
+  return windows.map((w) => `з ${formatTime(w.start)} до ${formatTime(w.end)}`).join(" і ");
+}
+
+function kyivDateTime(moment) {
+  const { day, month, hour, minute } = zonedParts(moment, KYIV_TIMEZONE);
+  return `${String(day).padStart(2, "0")}.${String(month).padStart(2, "0")} о ${hour}:${String(minute).padStart(2, "0")}`;
+}
+
+async function showOutageMenu(env, chatId) {
+  const today = kyivDay(new Date());
+  const days = [dayKey(today), dayKey(addDays(today, 1))];
+  const lines = ["💡 Планові відключення (київський час)"];
+  const deleteButtons = [];
+  for (const key of days) {
+    const record = await getOutage(env, key);
+    if (record) {
+      const status = record.sent ? "нагадування надіслано" : `нагадування ${kyivDateTime(new Date(record.sendAt))}`;
+      lines.push(`• ${dayLabel(key, days[0])}: ${windowsText(record.windows)} (${status})`);
+      deleteButtons.push({ text: `🗑 ${dayLabel(key, days[0])}`, callback_data: OUTAGE_DELETE_PREFIX + key });
+    }
+  }
+  if (lines.length === 1) {
+    lines.push("Поки нічого не заплановано.");
+  }
+  lines.push("", "Для якого дня ввести час?");
+  const keyboard = [[
+    { text: "Сьогодні", callback_data: OUTAGE_DAY_PREFIX + days[0] },
+    { text: "Завтра", callback_data: OUTAGE_DAY_PREFIX + days[1] },
+  ]];
+  if (deleteButtons.length) {
+    keyboard.push(deleteButtons);
+  }
+  await telegram(env, "sendMessage", { chat_id: chatId, text: lines.join("\n"), reply_markup: { inline_keyboard: keyboard } });
+}
+
+async function askForOutageTimes(env, chatId, dateKey) {
+  await setPendingDay(env, chatId, dateKey);
+  const todayKey = dayKey(kyivDay(new Date()));
+  await telegram(env, "sendMessage", {
+    chat_id: chatId,
+    text:
+      `Напиши проміжки без світла на ${dayLabel(dateKey, todayKey)} за київським часом, ` +
+      "наприклад: 7:30-17:00, 16-20:00\nАбо перешли повідомлення від ДТЕК.",
+  });
+}
+
+async function saveOutageTimes(env, chatId, dateKey, text) {
+  const windows = parseWindows(text);
+  if (!windows.length) {
+    await telegram(env, "sendMessage", {
+      chat_id: chatId,
+      text: "Не знайшла часу 🤔 Напиши так: 7:30-17:00, 16-20:00",
+    });
+    return;
+  }
+  await clearPendingDay(env, chatId);
+  const record = await saveOutage(env, chatId, dateKey, windows);
+  const todayKey = dayKey(kyivDay(new Date()));
+  const sendAt = new Date(record.sendAt);
+  const when = sendAt <= new Date() ? "надсилаю зараз" : kyivDateTime(sendAt);
+  await telegram(env, "sendMessage", {
+    chat_id: chatId,
+    text: `✅ Збережено на ${dayLabel(dateKey, todayKey)}: ${windowsText(windows)}.\nНагадування на планшет: ${when}.`,
+  });
+  // Entered late (reminder time already passed)? Then it goes out right now.
+  await sendReminders(env);
 }
 
 async function askForSlot(env, chatId) {

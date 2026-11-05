@@ -51,8 +51,11 @@ const env = { TELEGRAM_BOT_TOKEN: "1:x", WEBHOOK_SECRET: "s3cret", NOTIFIER_BOT_
 test("/start shows the menu, the button shows 9 slots", async () => {
   const calls = fakeTelegram();
   await handleUpdate({ message: { text: "/start", chat: { id: 7 }, from: { first_name: "Anhelika" } } }, env);
-  assert.equal(calls[0].body.text, "Привіт, Anhelika! Що зробимо?");
-  assert.equal(calls[0].body.reply_markup.inline_keyboard[0][0].callback_data, "silpo_menu");
+  assert.equal(calls[0].body.text, "Привіт, Anhelika!");
+  assert.deepEqual(calls[0].body.reply_markup, { remove_keyboard: true }); // old reply keyboard goes away
+  assert.equal(calls[1].body.text, "Що зробимо?");
+  const menu = calls[1].body.reply_markup.inline_keyboard.map((row) => row[0].callback_data);
+  assert.deepEqual(menu, ["silpo_menu", "outage_menu"]);
 
   await handleUpdate({ callback_query: { id: "q1", data: "silpo_menu", message: { chat: { id: 7 }, message_id: 1 } } }, env);
   const slots = calls.at(-1).body.reply_markup.inline_keyboard.flat().map((button) => button.text);
