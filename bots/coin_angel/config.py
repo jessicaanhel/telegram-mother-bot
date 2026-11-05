@@ -6,7 +6,7 @@ TELEGRAM_CHAT_ID = ("X", "NO-CHAT-ID")
 TELEGRAM_USER_ID = get_env("ANGELA_TELEGRAM_USERID", "NO-USER-ID")
 
 # App config
-MONGO_URI = "mongodb://localhost:27017/"
+MONGO_URI = get_env("MONGO_URI", "mongodb://localhost:27017/")  # docker-compose sets mongodb://mongo:27017/
 DB_NAME = "coin_angel"
 
 # Bot states
