@@ -1,5 +1,11 @@
 import os
 
+ENV = os.getenv("ENV", "local")
+
+if ENV == "local":
+    from dotenv import load_dotenv
+    load_dotenv()
+
 
 def get_env(name: str, default: str | None = None) -> str:
     """

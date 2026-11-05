@@ -4,7 +4,7 @@ from telegram.ext import CallbackQueryHandler, ConversationHandler, MessageHandl
 from telegram.warnings import PTBUserWarning
 
 from _features.functions.calculation_script.calculation_script import my_function_extended
-from bot.config import (
+from bots.coin_angel.config import (
     ASK_PARAM1_EXTENDED,
     ASK_PARAM2_EXTENDED,
     ASK_PARAM3_EXTENDED,

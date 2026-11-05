@@ -1,22 +1,9 @@
-import os
-
-from bot.utils.settings_utils import get_env
-
-ENV = os.getenv("ENV", "local")
-
-if ENV == "local":
-    from dotenv import load_dotenv
-    load_dotenv()
+from core.settings import get_env
 
 # Tokens
-TELEGRAM_TOKEN = get_env("TELEGRAM_ANGEL_TOKEN")
+TELEGRAM_TOKEN = get_env("TELEGRAM_ANGEL_TOKEN")  # @AngelCoin_Bot
 TELEGRAM_CHAT_ID = ("X", "NO-CHAT-ID")
 TELEGRAM_USER_ID = get_env("ANGELA_TELEGRAM_USERID", "NO-USER-ID")
-
-GITHUB_TOKEN = get_env("GITHUB_TOKEN")
-
-#External services
-BANDSINTOWN_APP_ID = "X"
 
 # App config
 MONGO_URI = "mongodb://localhost:27017/"

@@ -4,7 +4,7 @@ from telegram.ext import ConversationHandler, CallbackQueryHandler, MessageHandl
 from telegram.warnings import PTBUserWarning
 
 from _features.functions.empty_function_1.bot import empty_function_1
-from bot.config import EMPTY_FUNCTION_1, EMPTY_FUNCTION_2
+from bots.coin_angel.config import EMPTY_FUNCTION_1, EMPTY_FUNCTION_2
 filterwarnings(action="ignore", message=r".*CallbackQueryHandler", category=PTBUserWarning)
 
 #context.bot_data["app"] - this is instance of app manager-bot.

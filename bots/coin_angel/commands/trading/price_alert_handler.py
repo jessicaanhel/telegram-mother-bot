@@ -3,7 +3,7 @@ import logging
 from telegram import Update, InlineKeyboardMarkup, InlineKeyboardButton
 from telegram.ext import ContextTypes, ConversationHandler, CallbackQueryHandler, MessageHandler, filters, CommandHandler
 
-from bot.commands.trading.price_alert_service import PriceAlertManager
+from bots.coin_angel.commands.trading.price_alert_service import PriceAlertManager
 
 CHOOSING_COIN_NAME, CHOOSING_TARGET_PRICE = range(2)
 AWAITING_DOOR_SELECTION = 3

@@ -12,11 +12,11 @@ async def inline_router(update, context):
 
     # non-conversational functions only
     if data == "get_alerts_for_user":
-        from bot.commands.trading.price_alert_handler import show_user_alerts
+        from bots.coin_angel.commands.trading.price_alert_handler import show_user_alerts
         return await show_user_alerts(update, context)
 
     elif data == "return_home":
-        from bot.commands.trading.price_alert_handler import return_home
+        from bots.coin_angel.commands.trading.price_alert_handler import return_home
         return await return_home(update, context)
 
     elif data == "reset_and_start":
