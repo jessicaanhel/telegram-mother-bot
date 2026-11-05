@@ -6,6 +6,7 @@ NOT_RELEASED = "not_released"
 RELEASES = {
     "anabelle": RELEASED,
     "coin_angel": NOT_RELEASED,
+    "b2bro": NOT_RELEASED,
 }
 
 # Features inside a released bot that are not ready for the cloud yet.

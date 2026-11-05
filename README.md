@@ -4,8 +4,9 @@ One repo for all my Telegram bots. They share one skeleton (`core/`) and each bo
 
 | Bot | Folder | Token env var | Status |
 |---|---|---|---|
-| **Anabelle** – personal assistant ([@AnabelleBot](https://t.me/AnabelleBot)) | `bots/anabelle` | `TELEGRAM_BOT_TOKEN` | released (Cloudflare) |
+| **Anabelle** – personal assistant ([@AnabelleBot](https://t.me/AnabelleBot)) | `bots/anabelle` | `TELEGRAM_BOT_TOKEN` | Silpo live on a free Cloudflare Worker (`bots/anabelle/worker`) |
 | **Coin Angel** – crypto price alerts ([@AngelCoin_Bot](https://t.me/AngelCoin_Bot)) | `bots/coin_angel` | `TELEGRAM_ANGEL_TOKEN` | not released |
+| **B2Bro** – car speaker sizes and AI product picks (moved from the B2Bro repo) | `bots/b2bro` | `TELEGRAM_B2Bro_TOKEN` | not released |
 
 Release status lives in [`bots/releases.py`](bots/releases.py). Only released bots can start in the cloud.
 
@@ -22,7 +23,9 @@ bots/
   releases.py            released / not_released per bot
   __main__.py            python -m bots <name>  (cloud entry, refuses unreleased bots)
   anabelle/              app.py (menu + features), config.py, commands/
+    worker/              JavaScript Worker: /start + Silpo, deployed on the free plan
   coin_angel/            app.py, config.py, commands/, db/ (MongoDB)
+  b2bro/                 app.py, config.py, commands/, db/ (SQLite), data/ (not in git)
 cloudflare/              Worker + Containers config (deploys released bots)
 Dockerfile               one image for all bots
 ```
@@ -37,10 +40,15 @@ Dockerfile               one image for all bots
 ## Anabelle
 
 - `/start` – main menu with buttons
-- `/silpo` or **🛒 Кур'єр Сільпо** – pick the Silpo delivery slot (NL time, as in the Silpo app). Anabelle converts it to Kyiv time and sends it to `@roma_notiferbot`, whose webhook goes to MacroDroid on the tablet in Kyiv, which reads it out:
+- `/silpo` or **🛒 Кур'єр Сільпо** – pick the Silpo delivery slot (NL time, as in the Silpo app). Anabelle converts it to Kyiv time and sends it to the notifier bot (`NOTIFIER_BOT_USERNAME`), whose webhook goes to MacroDroid on the tablet, which reads it out:
   > Кур'єр Сільпо буде між 19:30 та 21:00. Це протягом наступних 3 годин 55 хвилин.
 
-  Needs **Bot-to-Bot Communication Mode** on in @BotFather for both @AnabelleBot and @roma_notiferbot.
+  Needs **Bot-to-Bot Communication Mode** on in @BotFather for this bot and the notifier bot.
+- `/outage` or **💡 Відключення світла** (Worker only) – planned power outages. Choose today or tomorrow, then type 1-3 windows in Kyiv time, in order (`22:30-00:40, 4:00-6:00`), or forward DTEK's message. Nothing is in the past: a window after midnight, or one already over, goes to the next day; overlapping windows (`7:30-17:00, 16-20:00`) stay on one day. One reminder goes to the tablet (Russian, the tablet adds its battery level):
+  > Сегодня с 22:30 до 0:40 и завтра с 4:00 до 6:00 не будет света. (twice) Не забудь зарядить свои устройства.
+
+  When: 3 hours before the first window, only between 9:30 and 22:00 (after 22:00 -> 22:00; before 9:30 -> 9:30 if still 2 hours before, else 22:00 the evening before). Entered later than that: sent right away. Stored in Workers KV, sent by a Cron Trigger every 15 minutes.
+  The DTEK / YASNO sites can't be read automatically (bot protection), so the times come from you.
 - `/concerts` or **🎤 Концерти** – follow artists in chosen cities. Add or remove artists and cities, or **🔎 Перевірити зараз**. Every day at 10:00 (NL) Anabelle checks Ticketmaster and sends concerts that weren't sent before.
   - Needs `TICKETMASTER_API_KEY` (free key at developer.ticketmaster.com).
   - **Local only for now** (`anabelle.concerts` is `not_released` in `bots/releases.py`): the daily job needs a bot process that keeps running, and the subscriptions live in SQLite (`bots/anabelle/data/`), which the sleeping Cloudflare container would lose.
@@ -54,35 +62,60 @@ Dockerfile               one image for all bots
 - **My Alerts** – your active alerts
 - Needs MongoDB on `localhost:27017`.
 
+## B2Bro
+
+- **🔍 Find speaker size** – type a make (lists its models) or `Make Model Year`, then pick front or rear door
+- **AI suggestion** – type a product or category; it filters the offer sheet and asks OpenAI for the best picks
+- Copy `speaker_sizes.db` and `n_offer.xlsx` into `bots/b2bro/data/`; `OPENAI_API_KEY` for the AI suggestion.
+
 ---
 
 ## Run locally
 
 ```bash
 pip install -r requirements.txt
-python -m bots.anabelle      # or: python -m bots.coin_angel
+python -m bots.anabelle      # or: python -m bots.coin_angel / python -m bots.b2bro
 ```
 
 Locally the bots use polling. Tokens come from the environment (or `.env` when `ENV=local`, the default).
 
-## Deploy (Cloudflare Containers)
+## Deploy Anabelle (free Cloudflare Worker)
 
-Needs the Workers Paid plan. Telegram calls the Worker at `/<bot>`, the Worker wakes that bot's container (it sleeps after 10 minutes idle) and the bot answers in webhook mode.
+The live @AnabelleBot is the small JavaScript Worker in `bots/anabelle/worker` (`/start`, Silpo and planned outages; Silpo uses the same texts as the Python bot, keep both in sync). Free Workers plan, no container.
+
+```bash
+cd bots/anabelle/worker
+npm install
+npx wrangler login
+npx wrangler kv namespace create OUTAGES       # once; put the printed id in wrangler.jsonc
+npx wrangler secret put TELEGRAM_BOT_TOKEN     # the bot's token from @BotFather
+npx wrangler secret put WEBHOOK_SECRET         # any random string
+npx wrangler deploy
+curl -X POST https://<botname>.<your-subdomain>.workers.dev/setup -H "X-Setup-Secret: <WEBHOOK_SECRET>"
+```
+
+`/setup` points the bot's webhook at the Worker and fills its `/` menu. Tests: `npm test`.
+
+While the Worker has the webhook, `python -m bots.anabelle` with the same token gets no updates (one token, one receiver). Use a separate test bot token locally.
+
+## Deploy (Cloudflare Containers, later)
+
+For the Python bots. Needs the Workers Paid plan. Telegram calls the Worker at `/<bot>`, the Worker wakes that bot's container (it sleeps after 10 minutes idle) and the bot answers in webhook mode.
 
 ```bash
 cd cloudflare
 npm install
 npx wrangler login
-npx wrangler secret put ANABELLE_TELEGRAM_BOT_TOKEN
-npx wrangler secret put ANABELLE_WEBHOOK_SECRET     # any random string
+npx wrangler secret put <BOTNAME>_TELEGRAM_BOT_TOKEN   # e.g. ANABELLE_TELEGRAM_BOT_TOKEN, see cloudflare/worker.js
+npx wrangler secret put <BOTNAME>_WEBHOOK_SECRET       # any random string
 npx wrangler deploy
 ```
 
 Then put the URL wrangler printed into `PUBLIC_URL` in `cloudflare/wrangler.jsonc`, deploy again, and point the bot at it once:
 
 ```bash
-curl -s "https://api.telegram.org/bot<TOKEN>/setWebhook" \
-  -d "url=<PUBLIC_URL>/anabelle" -d "secret_token=<ANABELLE_WEBHOOK_SECRET>"
+curl -s "https://api.telegram.org/bot<TELEGRAM_BOT_TOKEN>/setWebhook" \
+  -d "url=<PUBLIC_URL>/<botname>" -d "secret_token=<WEBHOOK_SECRET>"
 ```
 
 ---
