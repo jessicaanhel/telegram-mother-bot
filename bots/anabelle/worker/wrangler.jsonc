@@ -1,0 +1,11 @@
+{
+  // Anabelle (Silpo) on the free Workers plan
+  "name": "anabelle-bot",
+  "main": "src/index.js",
+  "compatibility_date": "2026-10-01",
+  "vars": {
+    // Bot whose webhook goes to MacroDroid on the tablet in Kyiv
+    "NOTIFIER_BOT_USERNAME": "@roma_notiferbot"
+  }
+  // Secrets (npx wrangler secret put <NAME>): TELEGRAM_BOT_TOKEN, WEBHOOK_SECRET
+}
