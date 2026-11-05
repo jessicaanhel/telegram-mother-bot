@@ -40,10 +40,10 @@ Dockerfile               one image for all bots
 ## Anabelle
 
 - `/start` – main menu with buttons
-- `/silpo` or **🛒 Кур'єр Сільпо** – pick the Silpo delivery slot (NL time, as in the Silpo app). Anabelle converts it to Kyiv time and sends it to `@roma_notiferbot`, whose webhook goes to MacroDroid on the tablet in Kyiv, which reads it out:
+- `/silpo` or **🛒 Кур'єр Сільпо** – pick the Silpo delivery slot (NL time, as in the Silpo app). Anabelle converts it to Kyiv time and sends it to the notifier bot (`NOTIFIER_BOT_USERNAME`), whose webhook goes to MacroDroid on the tablet, which reads it out:
   > Кур'єр Сільпо буде між 19:30 та 21:00. Це протягом наступних 3 годин 55 хвилин.
 
-  Needs **Bot-to-Bot Communication Mode** on in @BotFather for both @AnabelleBot and @roma_notiferbot.
+  Needs **Bot-to-Bot Communication Mode** on in @BotFather for this bot and the notifier bot.
 - `/outage` or **💡 Відключення світла** (Worker only) – planned power outages. Choose today or tomorrow, then type 1-3 windows in Kyiv time, in order (`22:30-00:40, 4:00-6:00`), or forward DTEK's message. Nothing is in the past: a window after midnight, or one already over, goes to the next day; overlapping windows (`7:30-17:00, 16-20:00`) stay on one day. One reminder goes to the tablet (Russian, the tablet adds its battery level):
   > Сегодня с 22:30 до 0:40 и завтра с 4:00 до 6:00 не будет света. (twice) Не забудь зарядить свои устройства.
 
