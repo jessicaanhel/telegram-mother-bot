@@ -1,19 +1,26 @@
 {
-  // Anabelle (Silpo, planned power outages) on the free Workers plan
-  "name": "anabelle-bot",
-  "main": "src/index.js",
-  "compatibility_date": "2026-10-01",
-  "vars": {
-    // Bot whose webhook goes to MacroDroid on the tablet in Kyiv
-    "NOTIFIER_BOT_USERNAME": "@roma_notiferbot"
-  },
-  // Planned outages and their reminder state. Create once with:
-  //   npx wrangler kv namespace create OUTAGES
-  // and put the id it prints here.
-  "kv_namespaces": [
-    { "binding": "OUTAGES", "id": "CHANGE-ME" }
-  ],
-  // Check every 15 minutes whether an outage reminder is due
-  "triggers": { "crons": ["*/15 * * * *"] }
-  // Secrets (npx wrangler secret put <NAME>): TELEGRAM_BOT_TOKEN, WEBHOOK_SECRET
+	// Anabelle (Silpo, planned power outages) on the free Workers plan
+	"name": "anabelle-bot",
+	"main": "src/index.js",
+	"compatibility_date": "2026-10-01",
+	"vars": {
+		// Bot whose webhook goes to MacroDroid on the tablet in Kyiv
+		"NOTIFIER_BOT_USERNAME": "@roma_notiferbot"
+	},
+	// Planned outages and their reminder state. Create once with:
+	//   npx wrangler kv namespace create OUTAGES
+	// and put the id it prints here.
+	"kv_namespaces": [
+		{
+			"binding": "OUTAGES",
+			"id": "4c4a3769563c406d9c2cc5ad50290e19"
+		}
+	],
+	// Check every 15 minutes whether an outage reminder is due
+	"triggers": {
+		"crons": [
+			"*/15 * * * *"
+		]
+	}
+	// Secrets (npx wrangler secret put <NAME>): TELEGRAM_BOT_TOKEN, WEBHOOK_SECRET
 }
