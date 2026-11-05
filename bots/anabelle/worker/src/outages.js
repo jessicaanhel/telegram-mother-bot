@@ -155,7 +155,8 @@ export async function listOutages(env) {
   const records = [];
   for (const { name } of keys) {
     const record = await env.OUTAGES.get(name, "json");
-    if (record) {
+    // Records from the first version (no id, windows in minutes) are skipped; they expire on their own
+    if (record?.id) {
       records.push({ ...record, windows: fromStored(record.windows) });
     }
   }
@@ -166,8 +167,8 @@ export function deleteOutage(env, id) {
   return env.OUTAGES.delete(RECORD_PREFIX + id);
 }
 
-async function markSent(env, record) {
-  const stored = { ...record, windows: toStored(record.windows), sent: true };
+async function updateRecord(env, record, changes) {
+  const stored = { ...record, ...changes, windows: toStored(record.windows) };
   await env.OUTAGES.put(RECORD_PREFIX + record.id, JSON.stringify(stored), { expirationTtl: RECORD_TTL_SECONDS });
 }
 
@@ -200,9 +201,14 @@ export async function sendDueReminders(env, now, sendToTablet, notifyChat) {
     const result = await sendToTablet(text);
     if (!result.ok) {
       console.error("Outage reminder not sent, will retry", result.description);
+      // Tell you once why it failed; the cron keeps retrying every 15 minutes
+      if (!record.errorReported) {
+        await updateRecord(env, record, { errorReported: true });
+        await notifyChat(record.chatId, `⚠️ Не вдалося надіслати на планшет: ${result.description}\nСпробую ще кожні 15 хвилин.`);
+      }
       continue;
     }
-    await markSent(env, record);
+    await updateRecord(env, record, { sent: true });
     await notifyChat(record.chatId, `📤 Нагадування надіслано на планшет:\n${text}`);
   }
 }
