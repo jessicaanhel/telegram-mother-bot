@@ -1,49 +1,88 @@
-# 💸 Coin Angel – Telegram Trading Bot
+# Telegram Mother Bot
 
-**Coin Angel** is a personal Telegram bot that helps you track cryptocurrency prices and set up custom alerts for your favorite coins. Built with `python-telegram-bot`, `FastAPI`, and `MongoDB`, it offers a smooth and interactive experience for crypto traders and enthusiasts.
+One repo for all my Telegram bots. They share one skeleton (`core/`) and each bot lives in its own folder under `bots/` with its own token, commands and buttons. Every bot runs as its own process.
 
----
+| Bot | Folder | Token env var | Status |
+|---|---|---|---|
+| **Anabelle** – personal assistant ([@AnabelleBot](https://t.me/AnabelleBot)) | `bots/anabelle` | `TELEGRAM_BOT_TOKEN` | released (Cloudflare) |
+| **Coin Angel** – crypto price alerts ([@AngelCoin_Bot](https://t.me/AngelCoin_Bot)) | `bots/coin_angel` | `TELEGRAM_ANGEL_TOKEN` | not released |
 
-##  Features
-
-- Create custom **price alerts** for any coin  
-- Get real-time Telegram notifications when targets are hit  
-- View all your **active alerts** anytime  
-- Uses **MongoDB** for persistent alert storage  
-- Built with **async** handlers for performance and reliability  
+Release status lives in [`bots/releases.py`](bots/releases.py). Only released bots can start in the cloud.
 
 ---
 
-## Tech Stack
+## Structure
 
-- Python 3.9+
-- [python-telegram-bot](https://github.com/python-telegram-bot/python-telegram-bot) (v20+)
-- FastAPI (for backend integration)
-- MongoDB (via `pymongo`)
-- SQLite (for other lightweight data handling)
+```
+core/                    shared skeleton
+  app_manager.py         AppManager: /start menu, reset, error handler, run
+  telegram_bot.py        one bot = one token; polling locally, webhook in the cloud
+  settings.py            get_env, loads .env when ENV=local
+bots/
+  releases.py            released / not_released per bot
+  __main__.py            python -m bots <name>  (cloud entry, refuses unreleased bots)
+  anabelle/              app.py (menu + features), config.py, commands/
+  coin_angel/            app.py, config.py, commands/, db/ (MongoDB)
+cloudflare/              Worker + Containers config (deploys released bots)
+Dockerfile               one image for all bots
+```
+
+### Adding a bot
+1. Create `bots/<name>/` with `config.py` (its token), `app.py` (subclass `AppManager`: `name`, `commands`, `greeting`, `menu_buttons`, `register_features`) and `__main__.py`.
+2. Add it to `bots/releases.py` as `not_released`.
+3. When it's ready: set it to `released` and add its container in `cloudflare/worker.js` and `cloudflare/wrangler.jsonc`.
 
 ---
 
-##  Getting Started
+## Anabelle
 
-### 1. Add the bot on Telegram  
-Search for [@AngelCoin_Bot](https://t.me/AngelCoin_Bot) in your Telegram app and start a chat.
+- `/start` – main menu with buttons
+- `/silpo` or **🛒 Кур'єр Сільпо** – pick the Silpo delivery slot (NL time, as in the Silpo app). Anabelle converts it to Kyiv time and sends it to `@roma_notiferbot`, whose webhook goes to MacroDroid on the tablet in Kyiv, which reads it out:
+  > Кур'єр Сільпо буде між 19:30 та 21:00. Це протягом наступних 3 годин 55 хвилин.
 
-### 2. Start the bot  
-Type `/start` to initialize the main menu and begin choosing a bot's function.
+  Needs **Bot-to-Bot Communication Mode** on in @BotFather for both @AnabelleBot and @roma_notiferbot.
 
+## Coin Angel
 
-## Example Commands
-Inside the bot:
+- **Create Price Alert** → choose a coin → set your price
+- **My Alerts** – your active alerts
+- Needs MongoDB on `localhost:27017`.
 
-* Press Create Price Alert → Choose a coin → Set your price
-* Press My Alerts to view all your current price alerts
-* Press Main Menu to start over
+---
 
-## Coming Soon
-*Email notifications
-*Price charts with historical data
-*Cancel/edit alert options
+## Run locally
 
-## 👤 Author
+```bash
+pip install -r requirements.txt
+python -m bots.anabelle      # or: python -m bots.coin_angel
+```
+
+Locally the bots use polling. Tokens come from the environment (or `.env` when `ENV=local`, the default).
+
+## Deploy (Cloudflare Containers)
+
+Needs the Workers Paid plan. Telegram calls the Worker at `/<bot>`, the Worker wakes that bot's container (it sleeps after 10 minutes idle) and the bot answers in webhook mode.
+
+```bash
+cd cloudflare
+npm install
+npx wrangler login
+npx wrangler secret put ANABELLE_TELEGRAM_BOT_TOKEN
+npx wrangler secret put ANABELLE_WEBHOOK_SECRET     # any random string
+npx wrangler deploy
+```
+
+Then put the URL wrangler printed into `PUBLIC_URL` in `cloudflare/wrangler.jsonc`, deploy again, and point the bot at it once:
+
+```bash
+curl -s "https://api.telegram.org/bot<TOKEN>/setWebhook" \
+  -d "url=<PUBLIC_URL>/anabelle" -d "secret_token=<ANABELLE_WEBHOOK_SECRET>"
+```
+
+---
+
+## License
+PolyForm Noncommercial 1.0.0 (the `LICENSE` file is on `develop`).
+
+## Author
 Made with ❤️ by @jessicaanhel
