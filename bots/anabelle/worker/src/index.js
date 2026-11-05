@@ -2,10 +2,10 @@
 // For now /start, Silpo and planned power outages; the Python bot (bots/anabelle) keeps the other features locally.
 import { SLOTS, courierMessage } from "./silpo.js";
 import {
-  clearPendingDay, deleteOutage, formatTime, getOutage, getPendingDay, parseWindows,
-  saveOutage, sendDueReminders, setPendingDay,
+  clearPendingDay, deleteOutage, describeWindows, getPendingDay, kyivDateTime, listOutages, parseWindows,
+  resolveWindows, saveOutage, sendDueReminders, setPendingDay,
 } from "./outages.js";
-import { KYIV_TIMEZONE, addDays, dayKey, kyivDay, parseDayKey, zonedParts } from "./time_zones.js";
+import { addDays, dayKey, kyivDay, parseDayKey } from "./time_zones.js";
 
 const SLOTS_PER_ROW = 3;
 const SILPO_MENU_CALLBACK = "silpo_menu";
@@ -130,76 +130,60 @@ export async function handleUpdate(update, env) {
 
 // ---- planned power outages ----
 
-function dayLabel(dateKey, todayKey) {
-  const { day, month } = parseDayKey(dateKey);
-  const date = `${String(day).padStart(2, "0")}.${String(month).padStart(2, "0")}`;
-  return `${dateKey === todayKey ? "сьогодні" : "завтра"}, ${date}`;
-}
-
-function windowsText(windows) {
-  return windows.map((w) => `з ${formatTime(w.start)} до ${formatTime(w.end)}`).join(" і ");
-}
-
-function kyivDateTime(moment) {
-  const { day, month, hour, minute } = zonedParts(moment, KYIV_TIMEZONE);
-  return `${String(day).padStart(2, "0")}.${String(month).padStart(2, "0")} о ${hour}:${String(minute).padStart(2, "0")}`;
-}
-
 async function showOutageMenu(env, chatId) {
-  const today = kyivDay(new Date());
-  const days = [dayKey(today), dayKey(addDays(today, 1))];
+  const now = new Date();
   const lines = ["💡 Планові відключення (київський час)"];
   const deleteButtons = [];
-  for (const key of days) {
-    const record = await getOutage(env, key);
-    if (record) {
-      const status = record.sent ? "нагадування надіслано" : `нагадування ${kyivDateTime(new Date(record.sendAt))}`;
-      lines.push(`• ${dayLabel(key, days[0])}: ${windowsText(record.windows)} (${status})`);
-      deleteButtons.push({ text: `🗑 ${dayLabel(key, days[0])}`, callback_data: OUTAGE_DELETE_PREFIX + key });
-    }
+  for (const record of await listOutages(env)) {
+    const status = record.sent ? "нагадування надіслано" : `нагадування ${kyivDateTime(new Date(record.sendAt))}`;
+    const windows = describeWindows(record.windows, now);
+    lines.push(`• ${windows} (${status})`);
+    deleteButtons.push([{ text: `🗑 ${windows}`, callback_data: OUTAGE_DELETE_PREFIX + record.id }]);
   }
   if (lines.length === 1) {
     lines.push("Поки нічого не заплановано.");
   }
-  lines.push("", "Для якого дня ввести час?");
-  const keyboard = [[
-    { text: "Сьогодні", callback_data: OUTAGE_DAY_PREFIX + days[0] },
-    { text: "Завтра", callback_data: OUTAGE_DAY_PREFIX + days[1] },
-  ]];
-  if (deleteButtons.length) {
-    keyboard.push(deleteButtons);
-  }
+  lines.push("", "З якого дня ввести час?");
+  const today = kyivDay(now);
+  const keyboard = [
+    [
+      { text: "Сьогодні", callback_data: OUTAGE_DAY_PREFIX + dayKey(today) },
+      { text: "Завтра", callback_data: OUTAGE_DAY_PREFIX + dayKey(addDays(today, 1)) },
+    ],
+    ...deleteButtons,
+  ];
   await telegram(env, "sendMessage", { chat_id: chatId, text: lines.join("\n"), reply_markup: { inline_keyboard: keyboard } });
 }
 
 async function askForOutageTimes(env, chatId, dateKey) {
   await setPendingDay(env, chatId, dateKey);
-  const todayKey = dayKey(kyivDay(new Date()));
   await telegram(env, "sendMessage", {
     chat_id: chatId,
     text:
-      `Напиши проміжки без світла на ${dayLabel(dateKey, todayKey)} за київським часом, ` +
-      "наприклад: 7:30-17:00, 16-20:00\nАбо перешли повідомлення від ДТЕК.",
+      "Напиши 1-3 проміжки без світла за київським часом, по порядку, наприклад:\n" +
+      "22:30-00:40, 4:00-6:00\n" +
+      "Час, що вже минув, і проміжки після півночі я віднесу на наступний день. Або перешли повідомлення від ДТЕК.",
   });
 }
 
 async function saveOutageTimes(env, chatId, dateKey, text) {
-  const windows = parseWindows(text);
-  if (!windows.length) {
+  const clockWindows = parseWindows(text);
+  if (!clockWindows.length) {
     await telegram(env, "sendMessage", {
       chat_id: chatId,
-      text: "Не знайшла часу 🤔 Напиши так: 7:30-17:00, 16-20:00",
+      text: "Не знайшла часу 🤔 Напиши так: 22:30-00:40, 4:00-6:00",
     });
     return;
   }
   await clearPendingDay(env, chatId);
-  const record = await saveOutage(env, chatId, dateKey, windows);
-  const todayKey = dayKey(kyivDay(new Date()));
+  const now = new Date();
+  const windows = resolveWindows(clockWindows, parseDayKey(dateKey), now);
+  const record = await saveOutage(env, chatId, windows);
   const sendAt = new Date(record.sendAt);
-  const when = sendAt <= new Date() ? "надсилаю зараз" : kyivDateTime(sendAt);
+  const when = sendAt <= now ? "надсилаю зараз" : kyivDateTime(sendAt);
   await telegram(env, "sendMessage", {
     chat_id: chatId,
-    text: `✅ Збережено на ${dayLabel(dateKey, todayKey)}: ${windowsText(windows)}.\nНагадування на планшет: ${when}.`,
+    text: `✅ Збережено: ${describeWindows(windows, now)}.\nНагадування на планшет: ${when}.`,
   });
   // Entered late (reminder time already passed)? Then it goes out right now.
   await sendReminders(env);

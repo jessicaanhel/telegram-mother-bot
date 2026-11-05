@@ -44,10 +44,10 @@ Dockerfile               one image for all bots
   > Кур'єр Сільпо буде між 19:30 та 21:00. Це протягом наступних 3 годин 55 хвилин.
 
   Needs **Bot-to-Bot Communication Mode** on in @BotFather for both @AnabelleBot and @roma_notiferbot.
-- `/outage` or **💡 Відключення світла** (Worker only) – planned power outages. Choose today or tomorrow, then type the windows in Kyiv time (`7:30-17:00, 16-20:00`) or forward DTEK's message. One reminder per day goes to the tablet (Russian, the tablet adds its battery level):
-  > Сегодня с 7:30 до 17:00 и с 16:00 до 20:00 не будет света. (twice) Не забудь зарядить свои устройства.
+- `/outage` or **💡 Відключення світла** (Worker only) – planned power outages. Choose today or tomorrow, then type 1-3 windows in Kyiv time, in order (`22:30-00:40, 4:00-6:00`), or forward DTEK's message. Nothing is in the past: a window after midnight, or one already over, goes to the next day; overlapping windows (`7:30-17:00, 16-20:00`) stay on one day. One reminder goes to the tablet (Russian, the tablet adds its battery level):
+  > Сегодня с 22:30 до 0:40 и завтра с 4:00 до 6:00 не будет света. (twice) Не забудь зарядить свои устройства.
 
-  When: 3 hours before the first window, but not before 9:30; if even 2 hours before is earlier than 9:30, at 20:00 the evening before. Entered later than that: sent right away. Stored in Workers KV, sent by a Cron Trigger every 15 minutes.
+  When: 3 hours before the first window, only between 9:30 and 22:00 (after 22:00 -> 22:00; before 9:30 -> 9:30 if still 2 hours before, else 22:00 the evening before). Entered later than that: sent right away. Stored in Workers KV, sent by a Cron Trigger every 15 minutes.
   The DTEK / YASNO sites can't be read automatically (bot protection), so the times come from you.
 
 ## Coin Angel
