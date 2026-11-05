@@ -23,8 +23,6 @@ async def handle_model_input(update: Update, context: ContextTypes.DEFAULT_TYPE)
     if len(parts) == 1:
         # User entered only the make
         make = parts[0].lower()
-        from bots.b2bro.db.car_speaker_db import CarSpeakerDB
-        db = CarSpeakerDB(DB_PATH)
         models = db.get_models_by_make(make)
 
         if not models:
@@ -41,7 +39,7 @@ async def handle_model_input(update: Update, context: ContextTypes.DEFAULT_TYPE)
 
     elif len(parts) >= 3:
         # User entered full make model year
-        car = find_car(user_input)
+        car = db.find_car(user_input)
         if not car:
             await update.message.reply_text(
                 "No car with this data found.\n"
