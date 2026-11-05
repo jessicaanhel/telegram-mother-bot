@@ -1,0 +1,7 @@
+.git
+.idea
+.venv
+.env
+.env.*
+**/__pycache__
+cloudflare

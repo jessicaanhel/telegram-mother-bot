@@ -1,0 +1,21 @@
+{
+  "name": "telegram-mother-bot",
+  "main": "worker.js",
+  "compatibility_date": "2026-10-01",
+  "vars": {
+    // Set after the first deploy to the URL wrangler prints, e.g. https://telegram-mother-bot.<you>.workers.dev
+    "PUBLIC_URL": "https://telegram-mother-bot.CHANGE-ME.workers.dev"
+  },
+  "containers": [
+    {
+      "class_name": "AnabelleContainer",
+      "image": "../Dockerfile",
+      "image_build_context": "..",
+      "max_instances": 1
+    }
+  ],
+  "durable_objects": {
+    "bindings": [{ "class_name": "AnabelleContainer", "name": "ANABELLE" }]
+  },
+  "migrations": [{ "tag": "v1", "new_sqlite_classes": ["AnabelleContainer"] }]
+}
