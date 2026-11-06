@@ -1,6 +1,6 @@
 // Anabelle on a free Cloudflare Worker: Telegram posts every update to /telegram.
 // For now /start, Silpo and planned power outages; the Python bot (bots/anabelle) keeps the other features locally.
-import { SLOTS, courierMessage } from "./silpo.js";
+import { SLOTS, WHEN_OPTIONS, courierMessage } from "./silpo.js";
 import {
   clearPendingDay, deleteOutage, describeWindows, getPendingDay, kyivDateTime, listOutages, parseWindows,
   resolveWindows, saveOutage, sendDueReminders, setPendingDay,
@@ -10,6 +10,7 @@ import { addDays, dayKey, kyivDay, parseDayKey } from "./time_zones.js";
 const SLOTS_PER_ROW = 3;
 const SILPO_MENU_CALLBACK = "silpo_menu";
 const SLOT_CALLBACK_PREFIX = "silpo_slot:";
+const WHEN_CALLBACK_PREFIX = "silpo_when:"; // silpo_when:<slot>|<option>
 const OUTAGE_MENU_CALLBACK = "outage_menu";
 const OUTAGE_DAY_PREFIX = "outage_day:";
 const OUTAGE_DELETE_PREFIX = "outage_delete:";
@@ -117,6 +118,8 @@ export async function handleUpdate(update, env) {
   if (query.data === SILPO_MENU_CALLBACK) {
     await askForSlot(env, query.message.chat.id);
   } else if (query.data?.startsWith(SLOT_CALLBACK_PREFIX)) {
+    await askWhen(env, query);
+  } else if (query.data?.startsWith(WHEN_CALLBACK_PREFIX)) {
     await sendSlotToTablet(env, query);
   } else if (query.data === OUTAGE_MENU_CALLBACK) {
     await showOutageMenu(env, query.message.chat.id);
@@ -202,8 +205,23 @@ async function askForSlot(env, chatId) {
   });
 }
 
+// After the slot: when is it? Replaces the slot buttons in the same message.
+async function askWhen(env, query) {
+  const slot = query.data.slice(SLOT_CALLBACK_PREFIX.length);
+  const buttons = Object.entries(WHEN_OPTIONS).map(([option, { button }]) => [
+    { text: button, callback_data: `${WHEN_CALLBACK_PREFIX}${slot}|${option}` },
+  ]);
+  await telegram(env, "editMessageText", {
+    chat_id: query.message.chat.id,
+    message_id: query.message.message_id,
+    text: `Слот ${slot} (час NL). Коли це?`,
+    reply_markup: { inline_keyboard: buttons },
+  });
+}
+
 async function sendSlotToTablet(env, query) {
-  const message = courierMessage(query.data.slice(SLOT_CALLBACK_PREFIX.length), new Date());
+  const [slot, when] = query.data.slice(WHEN_CALLBACK_PREFIX.length).split("|");
+  const message = courierMessage(slot, when, new Date());
 
   // Bot-to-bot message: needs "Bot-to-Bot Communication Mode" on for this bot and the notifier bot.
   // The notifier bot's webhook delivers it to MacroDroid on the tablet, which reads it out.
