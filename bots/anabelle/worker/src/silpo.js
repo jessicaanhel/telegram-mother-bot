@@ -1,5 +1,6 @@
-// Same logic as bots/anabelle/commands/silpo/silpo_slots.py: keep both in sync.
-import { KYIV_TIMEZONE, MINUTE, NL_TIMEZONE, addDays, zonedParts, zonedTimeToDate } from "./time_zones.js";
+// Silpo courier: you pick the delivery slot (NL time, as the Silpo app shows it) and when it is,
+// Anabelle sends one sentence in Kyiv time to the tablet.
+import { KYIV_TIMEZONE, NL_TIMEZONE, addDays, zonedParts, zonedTimeToDate } from "./time_zones.js";
 
 // Silpo delivery slots, as the Silpo app shows them (NL time)
 export const SLOTS = [
@@ -8,13 +9,22 @@ export const SLOTS = [
   "17:00-18:30", "18:30-20:00", "20:00-21:30",
 ];
 
+// Second question after the slot: when it is. You choose, nothing is calculated.
+export const WHEN_OPTIONS = {
+  "1": { button: "Протягом години", sentence: "Це протягом години." },
+  "2": { button: "Протягом 2 годин", sentence: "Це протягом 2 годин." },
+  "3": { button: "Протягом 3 годин", sentence: "Це протягом 3 годин." },
+  "4": { button: "Протягом 4 годин", sentence: "Це протягом 4 годин." },
+  "morning": { button: "Завтра вранці", sentence: "Це завтра вранці." },
+};
+
 const SLOT_PATTERN = /^(\d{1,2}):(\d{2})-(\d{1,2}):(\d{2})$/;
 
 /**
  * Convert an NL slot like "18:30-20:00" to the start and end moments.
- * A slot that has already ended today is taken as tomorrow's.
+ * "Tomorrow morning" and a slot that has already ended today are taken as tomorrow's.
  */
-export function slotMoments(slot, now) {
+export function slotMoments(slot, now, tomorrow = false) {
   const match = SLOT_PATTERN.exec(slot);
   if (!match) {
     throw new Error(`Not a Silpo slot: ${slot}`);
@@ -23,7 +33,7 @@ export function slotMoments(slot, now) {
 
   let nlDay = zonedParts(now, NL_TIMEZONE);
   let end = zonedTimeToDate(nlDay, endHour, endMinute, NL_TIMEZONE);
-  if (end <= now) {
+  if (tomorrow || end <= now) {
     nlDay = addDays(nlDay, 1);
     end = zonedTimeToDate(nlDay, endHour, endMinute, NL_TIMEZONE);
   }
@@ -35,36 +45,12 @@ function kyivTime(moment) {
   return `${hour}:${String(minute).padStart(2, "0")}`;
 }
 
-function kyivDateKey(moment) {
-  const { year, month, day } = zonedParts(moment, KYIV_TIMEZONE);
-  return year * 10000 + month * 100 + day;
-}
-
-// "протягом наступних 21 години", but "3 годин", "11 годин"
-function genitive(number, one, many) {
-  return number % 10 === 1 && number % 100 !== 11 ? `${number} ${one}` : `${number} ${many}`;
-}
-
-export function durationText(minutes) {
-  const hours = Math.floor(minutes / 60);
-  const rest = minutes % 60;
-  const parts = [];
-  if (hours) {
-    parts.push(genitive(hours, "години", "годин"));
+/** The sentence the tablet reads out: the slot in Kyiv time and the "when" you chose. */
+export function courierMessage(slot, when, now) {
+  const option = WHEN_OPTIONS[when];
+  if (!option) {
+    throw new Error(`Unknown Silpo time option: ${when}`);
   }
-  if (rest || !hours) {
-    parts.push(genitive(rest, "хвилини", "хвилин"));
-  }
-  return parts.join(" ");
-}
-
-/** The sentence the tablet reads out, in Kyiv time. */
-export function courierMessage(slot, now) {
-  const { start, end } = slotMoments(slot, now);
-  const day = kyivDateKey(start) > kyivDateKey(now) ? "завтра " : "";
-  const minutesToEnd = Math.floor((end - now) / MINUTE);
-  return (
-    `Кур'єр Сільпо буде ${day}між ${kyivTime(start)} та ${kyivTime(end)}. ` +
-    `Це протягом наступних ${durationText(minutesToEnd)}.`
-  );
+  const { start, end } = slotMoments(slot, now, when === "morning");
+  return `Кур'єр Сільпо буде між ${kyivTime(start)} та ${kyivTime(end)}. ${option.sentence}`;
 }
